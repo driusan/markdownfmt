@@ -149,7 +149,6 @@ func (mr *markdownRenderer) ListItem(out *bytes.Buffer, text []byte, flags int) 
 }
 func (mr *markdownRenderer) Paragraph(out *bytes.Buffer, text func() bool) {
 	marker := out.Len()
-	doubleSpace(out)
 
 	mr.paragraph[mr.listDepth] = true
 
@@ -157,6 +156,33 @@ func (mr *markdownRenderer) Paragraph(out *bytes.Buffer, text func() bool) {
 		out.Truncate(marker)
 		return
 	}
+
+	// Render the paragraph, copy the data into a new byte slice, then
+	// truncate it, because we're going to add a modified version of it
+	// with 80 character line lengths.
+	pdata := make([]byte, len(out.Bytes())-marker)
+	copy(pdata, out.Bytes()[marker:])
+	out.Truncate(marker)
+
+	doubleSpace(out)
+	// convert to string instead of using bytes.Fields, because we don't
+	// really care how many bytes are in a line, we care about how many
+	// rendered runes are.
+	words := strings.Fields(string(pdata))
+	lineLength := 0
+	for i, word := range words {
+		if lineLength+len(word) > 80 && i > 0 {
+			out.WriteString("\n" + word)
+			lineLength = len(word)
+		} else if i == 0 {
+			out.WriteString(word)
+			lineLength = len(word)
+		} else {
+			out.WriteString(" " + word)
+			lineLength += (len(word) + 1)
+		}
+	}
+
 	out.WriteString("\n")
 }
 
